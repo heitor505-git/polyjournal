@@ -10,25 +10,26 @@ const CATS = ["CS2","Valorant","Futebol","NBA","NFL","UFC/MMA","Tênis","MLB","N
 
 /* ─── Design Tokens (ARQ / Fintech Premium Aesthetic) ─── */
 const T = {
-  bg0: "#000000", // Preto absoluto
-  bg1: "#121212", // Cartões escuros
-  bg2: "#1C1C1E", // Inputs e Hover
+  bg0: "#000000",
+  bg1: "#121212",
+  bg2: "#1C1C1E",
   card: "#121212",
-  b0: "#222222", // Bordas muito sutis
+  b0: "#222222",
   b1: "#2C2C2E",
-  t0: "#FFFFFF", // Texto principal
-  t1: "#E5E5EA", // Texto secundário claro
-  t2: "#8E8E93", // Texto descritivo (cinza clássico fintech)
+  t0: "#FFFFFF",
+  t1: "#E5E5EA",
+  t2: "#8E8E93",
   t3: "#636366",
-  mint: "#32D74B", // Verde financeiro vibrante
+  mint: "#32D74B",
   mintDim: "rgba(50, 215, 75, 0.15)",
-  red: "#FF453A", // Vermelho financeiro
+  red: "#FF453A",
   redDim: "rgba(255, 69, 58, 0.15)",
   amber: "#FF9F0A",
   blue: "#0A84FF",
 };
 
 const ff = "'Outfit', -apple-system, system-ui, sans-serif";
+const fm = "'JetBrains Mono', 'SF Mono', monospace";
 const cardStyle = { background: T.card, borderRadius: 24, border: `1px solid ${T.b0}` };
 const inputBase = { width: "100%", padding: "16px", borderRadius: 16, background: T.bg2, border: "none", color: T.t0, fontSize: "1rem", fontFamily: ff, outline: "none", boxSizing: "border-box", transition: "background 0.2s" };
 const labelBase = { display: "block", fontSize: "0.8rem", fontWeight: 500, color: T.t2, marginBottom: 8 };
@@ -102,7 +103,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100dvh", background: T.bg0, color: T.t1, fontFamily: ff, paddingBottom: "env(safe-area-inset-bottom)", WebkitFontSmoothing: "antialiased" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
       <style>{`
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         body { overscroll-behavior: none; margin: 0; background: ${T.bg0}; }
@@ -111,15 +112,14 @@ export default function App() {
         .btn-hover { transition: transform 0.15s ease, opacity 0.15s ease; cursor: pointer; }
         .btn-hover:active { transform: scale(0.96); }
         .btn-hover:hover { opacity: 0.85; }
-        /* Oculta scrollbar para visual mais limpo */
         ::-webkit-scrollbar { display: none; }
       `}</style>
 
       <div style={{ maxWidth: 500, margin: "0 auto", padding: "16px 16px 100px" }}>
         <div style={{ animation: "slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)" }}>
           {view === "dashboard" && <Dashboard trades={trades} config={config} setView={setView} />}
-          {view === "new" && <TradeForm onSubmit={addTrade} onCancel={() => setView("dashboard")} trades={trades} />}
-          {view === "edit" && editingTrade && <TradeForm initialData={editingTrade} onSubmit={saveEdit} onCancel={() => { setEditingTrade(null); setView("history") }} isEdit />}
+          {view === "new" && <TradeForm onSubmit={addTrade} onCancel={() => setView("dashboard")} trades={trades} config={config} />}
+          {view === "edit" && editingTrade && <TradeForm initialData={editingTrade} onSubmit={saveEdit} onCancel={() => { setEditingTrade(null); setView("history") }} isEdit config={config} />}
           {view === "history" && <History trades={trades} onUpdate={updateTrade} onDelete={deleteTrade} onEdit={t => { setEditingTrade(t); setView("edit"); }} />}
           {view === "settings" && <Settings config={config} setConfig={setConfig} onExport={handleExport} onImport={handleImport} trades={trades} />}
         </div>
@@ -130,7 +130,7 @@ export default function App() {
   );
 }
 
-/* ════════════ BOTTOM NAV (Pill Style) ════════════ */
+/* ════════════ BOTTOM NAV ════════════ */
 function BottomNav({ view, setView }) {
   const tabs = [
     { id: "dashboard", icon: "Início" },
@@ -151,7 +151,7 @@ function BottomNav({ view, setView }) {
   );
 }
 
-/* ════════════ DASHBOARD (Fintech Vibe) ════════════ */
+/* ════════════ DASHBOARD ════════════ */
 function Dashboard({ trades, config, setView }) {
   const s = useMemo(() => {
     const res = trades.filter(t => t.result !== "pending");
@@ -168,7 +168,6 @@ function Dashboard({ trades, config, setView }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, paddingTop: 20 }}>
-      {/* Saldo Centralizado */}
       <div style={{ textAlign: "center", padding: "20px 0 10px" }}>
         <div style={{ fontSize: "0.9rem", color: T.t2, fontWeight: 500, marginBottom: 8 }}>Capital Total</div>
         <div style={{ fontSize: "3.8rem", fontWeight: 600, color: T.t0, letterSpacing: "-1.5px", lineHeight: 1 }}>${s.cb.toFixed(2)}</div>
@@ -178,7 +177,6 @@ function Dashboard({ trades, config, setView }) {
         </div>
       </div>
 
-      {/* Gráfico Minimalista */}
       {s.tl.length > 1 && (
         <div style={{ height: 180, margin: "0 -16px" }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -191,13 +189,11 @@ function Dashboard({ trades, config, setView }) {
         </div>
       )}
 
-      {/* Ações Rápidas */}
       <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
         <button className="btn-hover" onClick={() => setView("new")} style={{ flex: 1, padding: "18px", borderRadius: 20, background: T.t0, color: T.bg0, border: "none", fontSize: "1rem", fontWeight: 600, fontFamily: ff }}>+ Registrar Trade</button>
         <button className="btn-hover" onClick={() => setView("history")} style={{ flex: 1, padding: "18px", borderRadius: 20, background: T.bg2, color: T.t0, border: "none", fontSize: "1rem", fontWeight: 600, fontFamily: ff }}>Ver Extrato</button>
       </div>
 
-      {/* Resumo Rápido */}
       <div style={{ ...cardStyle, padding: "24px", display: "flex", flexDirection: "column", gap: 16, marginTop: 8 }}>
         <h3 style={{ fontSize: "1.1rem", fontWeight: 600, margin: 0, color: T.t0 }}>Resumo de Performance</h3>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 16, borderBottom: `1px solid ${T.b0}` }}>
@@ -217,14 +213,26 @@ function Dashboard({ trades, config, setView }) {
   );
 }
 
-/* ════════════ TRADE FORM (Clean Inputs) ════════════ */
-function TradeForm({ initialData, onSubmit, onCancel, isEdit }) {
-  const defaultState = { market: "", category: "CS2", stake: "", odds: "", result: "pending", notes: "", date: new Date().toISOString().split("T")[0] };
+/* ════════════ TRADE FORM (Com Trava de Risco e Confiança) ════════════ */
+function TradeForm({ initialData, onSubmit, onCancel, isEdit, config }) {
+  const defaultState = { market: "", category: "CS2", stake: "", odds: "", result: "pending", notes: "", date: new Date().toISOString().split("T")[0], confidence: 1 };
   const [f, setF] = useState(initialData || defaultState);
   
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
-  const stake = parseFloat(f.stake) || 0, odds = parseFloat(f.odds) || 0;
-  const ok = f.market.trim() && stake > 0 && odds > 0;
+  
+  const bankroll = config.bankroll || 1000;
+  const maxRiskPct = config.maxRiskPct || 5;
+  const stake = parseFloat(f.stake) || 0;
+  const odds = parseFloat(f.odds) || 0;
+  
+  const stakePct = bankroll > 0 ? (stake / bankroll) * 100 : 0;
+  const overLimit = stakePct > maxRiskPct;
+  const ok = f.market.trim() && stake > 0 && odds > 0 && !overLimit;
+
+  const handleConfidenceClick = (n) => {
+    const calculatedStake = ((bankroll * n) / 100).toFixed(2);
+    setF(p => ({ ...p, confidence: n, stake: calculatedStake }));
+  };
 
   const submit = () => { 
     if (!ok) return; 
@@ -245,14 +253,38 @@ function TradeForm({ initialData, onSubmit, onCancel, isEdit }) {
         <div style={{ padding: "12px 0", borderBottom: `1px solid ${T.b0}` }}>
           <input style={{ ...inputBase, background: "transparent", padding: "8px 0", fontSize: "1.2rem", fontWeight: 500 }} placeholder="Mercado (ex: NAVI Vencedor)" value={f.market} onChange={e => set("market", e.target.value)} />
         </div>
+
+        {/* Nível de Confiança / Unidades */}
+        <div style={{ padding: "16px 0", borderBottom: `1px solid ${T.b0}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <label style={{ ...labelBase, margin: 0, fontSize: "0.75rem", textTransform: "uppercase" }}>Confiança (1★ = 1u = 1%)</label>
+            <div style={{ display: "flex", gap: 12 }}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <button
+                  key={n}
+                  onClick={() => handleConfidenceClick(n)}
+                  className="btn-hover"
+                  style={{ background: "transparent", border: "none", fontSize: "1.4rem", padding: 0, color: f.confidence >= n ? T.t0 : T.b1, cursor: "pointer", transition: "color 0.2s" }}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         <div style={{ display: "flex", padding: "16px 0", borderBottom: `1px solid ${T.b0}` }}>
           <div style={{ flex: 1, borderRight: `1px solid ${T.b0}`, paddingRight: 16 }}>
-            <label style={{ ...labelBase, fontSize: "0.75rem", textTransform: "uppercase" }}>Volume (USD)</label>
-            <input type="number" style={{ ...inputBase, background: "transparent", padding: 0, fontSize: "1.6rem", fontWeight: 600 }} placeholder="0.00" value={f.stake} onChange={e => set("stake", e.target.value)} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label style={{ ...labelBase, fontSize: "0.75rem", textTransform: "uppercase", margin: 0 }}>Volume (USD)</label>
+              {stake > 0 && <span style={{ fontSize: "0.7rem", color: overLimit ? T.red : T.t2, fontWeight: 600, fontFamily: fm }}>{stakePct.toFixed(1)}%</span>}
+            </div>
+            <input type="number" style={{ ...inputBase, background: "transparent", padding: "8px 0 0 0", fontSize: "1.6rem", fontWeight: 600, color: overLimit ? T.red : T.t0 }} placeholder="0.00" value={f.stake} onChange={e => set("stake", e.target.value)} />
+            {overLimit && <div style={{ fontSize: "0.65rem", color: T.red, marginTop: 4, fontWeight: 500 }}>Excede limite de {maxRiskPct}%</div>}
           </div>
           <div style={{ flex: 1, paddingLeft: 16 }}>
             <label style={{ ...labelBase, fontSize: "0.75rem", textTransform: "uppercase" }}>Odd / Cotação</label>
-            <input type="number" step="0.01" style={{ ...inputBase, background: "transparent", padding: 0, fontSize: "1.6rem", fontWeight: 600 }} placeholder="0.00" value={f.odds} onChange={e => set("odds", e.target.value)} />
+            <input type="number" step="0.01" style={{ ...inputBase, background: "transparent", padding: "8px 0 0 0", fontSize: "1.6rem", fontWeight: 600 }} placeholder="0.00" value={f.odds} onChange={e => set("odds", e.target.value)} />
           </div>
         </div>
         <div style={{ display: "flex", gap: 16, padding: "16px 0" }}>
@@ -276,12 +308,12 @@ function TradeForm({ initialData, onSubmit, onCancel, isEdit }) {
 
       <textarea style={{ ...inputBase, minHeight: 100, resize: "vertical", marginTop: 8 }} placeholder="Notas ou tese da operação (opcional)..." value={f.notes} onChange={e => set("notes", e.target.value)} />
 
-      <button className="btn-hover" onClick={submit} disabled={!ok} style={{ padding: "20px", borderRadius: 100, background: ok ? T.t0 : T.b0, color: ok ? T.bg0 : T.t3, border: "none", fontSize: "1.1rem", fontWeight: 600, marginTop: 10, opacity: ok ? 1 : 0.5 }}>{isEdit ? "Salvar" : "Confirmar"}</button>
+      <button className="btn-hover" onClick={submit} disabled={!ok} style={{ padding: "20px", borderRadius: 100, background: ok ? T.t0 : T.b0, color: ok ? T.bg0 : T.t3, border: "none", fontSize: "1.1rem", fontWeight: 600, marginTop: 10, opacity: ok ? 1 : 0.5, transition: "all 0.2s" }}>{isEdit ? "Salvar" : "Confirmar"}</button>
     </div>
   );
 }
 
-/* ════════════ HISTORY (Extrato Style) ════════════ */
+/* ════════════ HISTORY ════════════ */
 function History({ trades, onUpdate, onDelete, onEdit }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingTop: 10 }}>
@@ -295,6 +327,7 @@ function History({ trades, onUpdate, onDelete, onEdit }) {
             const isWin = t.result === "win";
             const isLoss = t.result === "loss";
             const isPending = t.result === "pending";
+            const stars = "★".repeat(t.confidence || 1);
             
             return (
               <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: i === trades.length - 1 ? "none" : `1px solid ${T.b0}` }}>
@@ -304,7 +337,7 @@ function History({ trades, onUpdate, onDelete, onEdit }) {
                   </div>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: "1rem", color: T.t0, marginBottom: 4 }}>{t.market}</div>
-                    <div style={{ fontSize: "0.8rem", color: T.t2 }}>{t.date} · {t.category}</div>
+                    <div style={{ fontSize: "0.75rem", color: T.t2, fontFamily: fm }}>{t.date} · {t.category} <span style={{ color: T.t1, marginLeft: 4 }}>{stars}</span></div>
                   </div>
                 </div>
                 
@@ -312,7 +345,7 @@ function History({ trades, onUpdate, onDelete, onEdit }) {
                   <div style={{ fontWeight: 600, fontSize: "1.05rem", color: isWin ? T.mint : isLoss ? T.t0 : T.amber }}>
                     {!isPending ? (t.pnl >= 0 ? `+$${t.pnl.toFixed(2)}` : `-$${Math.abs(t.pnl).toFixed(2)}`) : "Em aberto"}
                   </div>
-                  <div style={{ fontSize: "0.8rem", color: T.t2, marginTop: 4 }}>Vol: ${parseFloat(t.stake).toFixed(2)}</div>
+                  <div style={{ fontSize: "0.8rem", color: T.t2, marginTop: 4, fontFamily: fm }}>Vol: ${parseFloat(t.stake).toFixed(2)}</div>
                 </div>
               </div>
             );
