@@ -27,12 +27,39 @@ const cardStyle = { background:T.card, backdropFilter:"blur(40px) saturate(1.5)"
 const inputBase = { width:"100%", padding:"13px 16px", borderRadius:12, background:T.bg2, border:`1px solid ${T.b1}`, color:T.t0, fontSize:"0.88rem", fontFamily:ff, outline:"none", boxSizing:"border-box", transition:"border-color 0.2s" };
 const labelBase = { display:"block", fontSize:"0.72rem", fontWeight:600, color:T.t2, marginBottom:7, letterSpacing:"0.4px", textTransform:"uppercase" };
 
+/* ─── Export/Import helpers ─── */
+function exportTrades(trades, config) {
+  const data = JSON.stringify({ trades, config, exportedAt: new Date().toISOString(), version: 3 }, null, 2);
+  const blob = new Blob([data], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `polyjournal-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function importTrades(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (!data.trades || !Array.isArray(data.trades)) reject("Arquivo inválido");
+        else resolve(data);
+      } catch { reject("Erro ao ler arquivo") }
+    };
+    reader.onerror = () => reject("Erro ao ler arquivo");
+    reader.readAsText(file);
+  });
+}
+
 /* ════════════════════════════════════════ */
 export default function App() {
   const [trades, setTrades] = useState([]);
   const [config, setConfig] = useState({ bankroll:1000, maxRiskPct:5 });
   const [view, setView] = useState("dashboard");
   const [ready, setReady] = useState(false);
+  const [editingTrade, setEditingTrade] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
     const t = sg(SK_T); const c = sg(SK_C);
@@ -45,7 +72,29 @@ export default function App() {
 
   const addTrade = useCallback(t => { setTrades(p => [{ ...t, id:Date.now().toString(), createdAt:new Date().toISOString() }, ...p]); setView("history") }, []);
   const updateTrade = useCallback((id, u) => setTrades(p => p.map(t => t.id === id ? { ...t, ...u } : t)), []);
-  const deleteTrade = useCallback(id => setTrades(p => p.filter(t => t.id !== id)), []);
+  const deleteTrade = useCallback(id => { setDeleteConfirm(null); setTrades(p => p.filter(t => t.id !== id)) }, []);
+  const confirmDelete = useCallback(id => setDeleteConfirm(id), []);
+  const cancelDelete = useCallback(() => setDeleteConfirm(null), []);
+
+  const handleExport = () => exportTrades(trades, config);
+  const handleImport = async (file) => {
+    try {
+      const data = await importTrades(file);
+      setTrades(data.trades);
+      if (data.config) setConfig(data.config);
+      alert(`Importado! ${data.trades.length} trades restauradas.`);
+    } catch (err) { alert("Erro: " + err) }
+  };
+
+  const startEdit = useCallback(t => { setEditingTrade(t); setView("edit") }, []);
+  const saveEdit = useCallback(t => {
+    const stake = parseFloat(t.stake) || 0, odds = parseFloat(t.odds) || 0;
+    let pnl = 0;
+    if (t.result === "win" && odds > 0) pnl = (stake / odds) - stake;
+    if (t.result === "loss") pnl = -stake;
+    updateTrade(t.id, { ...t, stake, odds, pnl });
+    setEditingTrade(null); setView("history");
+  }, [updateTrade]);
 
   if (!ready) return (
     <div style={{ minHeight:"100vh", minHeight:"100dvh", background:T.bg0, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:ff }}>
@@ -78,11 +127,27 @@ export default function App() {
         <div style={{ animation:"fadeIn 0.4s ease" }}>
           {view === "dashboard" && <Dashboard trades={trades} config={config} setView={setView} />}
           {view === "new" && <NewTrade onSubmit={addTrade} onCancel={() => setView("dashboard")} config={config} trades={trades} />}
-          {view === "history" && <History trades={trades} onUpdate={updateTrade} onDelete={deleteTrade} />}
+          {view === "edit" && editingTrade && <EditTrade trade={editingTrade} onSave={saveEdit} onCancel={() => { setEditingTrade(null); setView("history") }} config={config} />}
+          {view === "history" && <History trades={trades} onUpdate={updateTrade} onDelete={confirmDelete} onEdit={startEdit} />}
           {view === "insights" && <Insights trades={trades} />}
-          {view === "settings" && <Settings config={config} setConfig={setConfig} />}
+          {view === "settings" && <Settings config={config} setConfig={setConfig} onExport={handleExport} onImport={handleImport} />}
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteConfirm && (
+        <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={cancelDelete}>
+          <div onClick={e => e.stopPropagation()} style={{ ...cardStyle, padding:"24px", maxWidth:340, width:"100%", textAlign:"center", background:T.cardSolid }}>
+            <div style={{ fontSize:"1.5rem", marginBottom:12 }}>🗑️</div>
+            <div style={{ fontWeight:700, fontSize:"0.95rem", marginBottom:6, color:T.t0 }}>Deletar trade?</div>
+            <p style={{ fontSize:"0.82rem", color:T.t2, marginBottom:20, lineHeight:1.5 }}>Essa ação não pode ser desfeita.</p>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={cancelDelete} style={{ flex:1, padding:"12px", border:`1px solid ${T.b1}`, borderRadius:10, background:"transparent", color:T.t2, fontSize:"0.84rem", fontWeight:500, cursor:"pointer", fontFamily:ff }}>Cancelar</button>
+              <button onClick={() => deleteTrade(deleteConfirm)} style={{ flex:1, padding:"12px", border:"none", borderRadius:10, background:T.red, color:"#fff", fontSize:"0.84rem", fontWeight:700, cursor:"pointer", fontFamily:ff }}>Deletar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Tab Bar — mobile native feel */}
       <BottomNav view={view} setView={setView} />
@@ -351,14 +416,25 @@ function NewTrade({ onSubmit, onCancel, config, trades }) {
 }
 
 /* ════════════ HISTORY ════════════ */
-function History({ trades, onUpdate, onDelete }) {
+function History({ trades, onUpdate, onDelete, onEdit }) {
   const [fl, setFl] = useState("all");
-  const fd = trades.filter(t => fl === "all" || t.result === fl);
+  const [search, setSearch] = useState("");
+  const [catFilter, setCatFilter] = useState("all");
+
+  const fd = trades.filter(t => {
+    if (fl !== "all" && t.result !== fl) return false;
+    if (catFilter !== "all" && t.category !== catFilter) return false;
+    if (search.trim() && !t.market.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
   const mark = (id, r, s, o) => { const sk = parseFloat(s) || 0, od = parseFloat(o) || 0; let pnl = 0; if (r === "win") pnl = (sk / od) - sk; if (r === "loss") pnl = -sk; onUpdate(id, { result:r, pnl }) };
+
+  // Get unique categories from trades
+  const usedCats = [...new Set(trades.map(t => t.category))];
 
   return (
     <div>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, gap:8 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12, gap:8 }}>
         <h2 style={{ fontSize:"1.15rem", fontWeight:700, color:T.t0 }}>Histórico</h2>
         <div style={{ display:"flex", gap:3 }}>
           {[{ id:"all", l:"All" }, { id:"pending", l:"⏳" }, { id:"win", l:"✅" }, { id:"loss", l:"❌" }].map(f => (
@@ -366,10 +442,30 @@ function History({ trades, onUpdate, onDelete }) {
           ))}
         </div>
       </div>
+
+      {/* Search + Category filter */}
+      <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+        <input
+          style={{ ...inputBase, padding:"10px 14px", fontSize:"0.82rem", flex:1 }}
+          placeholder="🔍 Buscar mercado..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        <select
+          style={{ ...inputBase, padding:"10px 12px", fontSize:"0.78rem", width:"auto", minWidth:90, cursor:"pointer" }}
+          value={catFilter}
+          onChange={e => setCatFilter(e.target.value)}
+        >
+          <option value="all">Todas</option>
+          {usedCats.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+
       {!fd.length ? (
-        <div style={{ textAlign:"center", padding:"50px 16px", color:T.t3 }}>Nenhuma trade.</div>
+        <div style={{ textAlign:"center", padding:"50px 16px", color:T.t3 }}>Nenhuma trade encontrada.</div>
       ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+          <div style={{ fontSize:"0.68rem", color:T.t3, marginBottom:2 }}>{fd.length} trade{fd.length !== 1 ? "s" : ""}</div>
           {fd.map(t => {
             const rc = { win:T.mint, loss:T.red, pending:T.amber };
             const rl = { win:"WIN", loss:"LOSS", pending:"PEND" };
@@ -402,7 +498,8 @@ function History({ trades, onUpdate, onDelete }) {
                           <button onClick={() => mark(t.id, "loss", t.stake, t.odds)} style={{ padding:"4px 9px", borderRadius:6, border:`1px solid ${T.red}33`, background:T.redDim, color:T.red, fontSize:"0.68rem", fontWeight:600, cursor:"pointer", fontFamily:ff }}>Loss</button>
                         </>
                       )}
-                      <button onClick={() => onDelete(t.id)} style={{ padding:"4px 7px", borderRadius:6, border:`1px solid ${T.b0}`, background:"transparent", color:T.t3, fontSize:"0.65rem", cursor:"pointer" }}>✕</button>
+                      <button onClick={() => onEdit(t)} style={{ padding:"4px 7px", borderRadius:6, border:`1px solid ${T.b0}`, background:"transparent", color:T.t3, fontSize:"0.65rem", cursor:"pointer" }} title="Editar">✏️</button>
+                      <button onClick={() => onDelete(t.id)} style={{ padding:"4px 7px", borderRadius:6, border:`1px solid ${T.b0}`, background:"transparent", color:T.t3, fontSize:"0.65rem", cursor:"pointer" }} title="Deletar">✕</button>
                     </div>
                   </div>
                 </div>
@@ -412,6 +509,83 @@ function History({ trades, onUpdate, onDelete }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ════════════ EDIT TRADE ════════════ */
+function EditTrade({ trade, onSave, onCancel, config }) {
+  const [f, setF] = useState({
+    ...trade,
+    stake: String(trade.stake || ""),
+    odds: String(trade.odds || ""),
+  });
+  const set = (k, v) => setF(p => ({ ...p, [k]:v }));
+  const stake = parseFloat(f.stake) || 0, odds = parseFloat(f.odds) || 0;
+  const maxStk = (config.bankroll * config.maxRiskPct) / 100;
+  const over = stake > maxStk && maxStk > 0;
+  const pay = useMemo(() => { if (!stake || !odds || odds <= 0 || odds >= 1) return { w:0, l:0 }; return { w:(stake / odds) - stake, l:-stake } }, [stake, odds]);
+  const ok = f.market.trim() && stake > 0 && odds > 0 && odds < 1;
+
+  return (
+    <div style={{ animation:"slideIn 0.3s ease" }}>
+      <h2 style={{ fontSize:"1.15rem", fontWeight:700, letterSpacing:"-0.3px", marginBottom:20, color:T.t0 }}>Editar Trade</h2>
+      <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+        <div><label style={labelBase}>Tipo</label>
+          <div style={{ display:"flex", gap:8 }}>
+            {[{ id:"planned", l:"Planejada", d:"Analisei", c:T.mint }, { id:"impulsive", l:"Impulsiva", d:"Na hora", c:T.amber }].map(t => (
+              <button key={t.id} onClick={() => set("tradeType", t.id)} style={{ flex:1, padding:"13px 10px", borderRadius:12, cursor:"pointer", fontFamily:ff, textAlign:"center", border:`1px solid ${f.tradeType === t.id ? t.c + "33" : T.b0}`, background:f.tradeType === t.id ? t.c + "0d" : "transparent", transition:"all 0.25s" }}>
+                <div style={{ fontSize:"0.82rem", fontWeight:600, color:f.tradeType === t.id ? T.t0 : T.t3 }}>{t.l}</div>
+                <div style={{ fontSize:"0.65rem", color:T.t3, marginTop:1 }}>{t.d}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div><label style={labelBase}>Mercado</label><input style={inputBase} value={f.market} onChange={e => set("market", e.target.value)} /></div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          <div><label style={labelBase}>Categoria</label><select style={{ ...inputBase, cursor:"pointer" }} value={f.category} onChange={e => set("category", e.target.value)}>{CATS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+          <div><label style={labelBase}>Data</label><input type="date" style={inputBase} value={f.date} onChange={e => set("date", e.target.value)} /></div>
+        </div>
+        <div><label style={labelBase}>Lado</label>
+          <div style={{ display:"flex", gap:8 }}>
+            {["YES", "NO"].map(s => (
+              <button key={s} onClick={() => set("side", s)} style={{ flex:1, padding:"11px", borderRadius:10, fontFamily:ff, cursor:"pointer", fontWeight:600, fontSize:"0.84rem", border:`1px solid ${f.side === s ? (s === "YES" ? T.mint : T.red) + "44" : T.b0}`, background:f.side === s ? (s === "YES" ? T.mintDim : T.redDim) : "transparent", color:f.side === s ? (s === "YES" ? T.mint : T.red) : T.t3, transition:"all 0.2s" }}>{s}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          <div><label style={labelBase}>Stake ($)</label>
+            <input type="number" style={{ ...inputBase, borderColor:over ? T.red + "66" : T.b1 }} value={f.stake} onChange={e => set("stake", e.target.value)} />
+            {over && <div style={{ fontSize:"0.66rem", color:T.red, marginTop:4 }}>Acima de {config.maxRiskPct}% (máx ${maxStk.toFixed(0)})</div>}
+          </div>
+          <div><label style={labelBase}>Odd</label><input type="number" step="0.01" style={inputBase} value={f.odds} onChange={e => set("odds", e.target.value)} /></div>
+        </div>
+        {stake > 0 && odds > 0 && odds < 1 && (
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, padding:"14px", borderRadius:12, background:T.blueDim, border:`1px solid ${T.blue}11` }}>
+            <div style={{ textAlign:"center" }}><div style={{ fontSize:"0.6rem", color:T.t3, fontWeight:600, textTransform:"uppercase", marginBottom:3 }}>Ganho</div><div style={{ fontFamily:fm, fontWeight:700, color:T.mint, fontSize:"0.95rem" }}>+${pay.w.toFixed(2)}</div></div>
+            <div style={{ textAlign:"center" }}><div style={{ fontSize:"0.6rem", color:T.t3, fontWeight:600, textTransform:"uppercase", marginBottom:3 }}>Perda</div><div style={{ fontFamily:fm, fontWeight:700, color:T.red, fontSize:"0.95rem" }}>-${Math.abs(pay.l).toFixed(2)}</div></div>
+          </div>
+        )}
+        <div><label style={labelBase}>Confiança</label>
+          <div style={{ display:"flex", gap:4 }}>
+            {[1, 2, 3, 4, 5].map(n => (
+              <button key={n} onClick={() => set("confidence", n)} style={{ flex:1, padding:"10px 0", borderRadius:8, cursor:"pointer", border:`1px solid ${f.confidence >= n ? T.amber + "44" : T.b0}`, background:f.confidence >= n ? T.amberDim : "transparent", fontSize:"1rem", color:f.confidence >= n ? T.amber : T.t3, transition:"all 0.15s", fontFamily:ff }}>{f.confidence >= n ? "★" : "☆"}</button>
+            ))}
+          </div>
+        </div>
+        <div><label style={labelBase}>Resultado</label>
+          <div style={{ display:"flex", gap:8 }}>
+            {[{ id:"pending", l:"Pendente", c:T.t3 }, { id:"win", l:"Win", c:T.mint }, { id:"loss", l:"Loss", c:T.red }].map(r => (
+              <button key={r.id} onClick={() => set("result", r.id)} style={{ flex:1, padding:"11px", borderRadius:10, fontFamily:ff, cursor:"pointer", fontWeight:600, fontSize:"0.8rem", border:`1px solid ${f.result === r.id ? r.c + "44" : T.b0}`, background:f.result === r.id ? r.c + "0d" : "transparent", color:f.result === r.id ? r.c : T.t3, transition:"all 0.2s" }}>{r.l}</button>
+            ))}
+          </div>
+        </div>
+        <div><label style={labelBase}>Notas</label><textarea style={{ ...inputBase, minHeight:65, resize:"vertical" }} value={f.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
+        <div style={{ display:"flex", gap:10, marginTop:4 }}>
+          <button onClick={onCancel} style={{ flex:1, padding:"14px", border:`1px solid ${T.b1}`, borderRadius:12, background:"transparent", color:T.t2, fontSize:"0.84rem", fontWeight:500, cursor:"pointer", fontFamily:ff }}>Cancelar</button>
+          <button onClick={() => onSave(f)} disabled={!ok} style={{ flex:2, padding:"14px", border:"none", borderRadius:12, background:ok ? `linear-gradient(135deg, ${T.mint}, #2dd4bf)` : T.b0, color:ok ? T.bg0 : T.t3, fontSize:"0.84rem", fontWeight:700, cursor:ok ? "pointer" : "not-allowed", fontFamily:ff, boxShadow:ok ? `0 4px 20px ${T.mintDim}` : "none" }}>Salvar Alterações</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -475,7 +649,8 @@ function Insights({ trades }) {
 }
 
 /* ════════════ SETTINGS ════════════ */
-function Settings({ config, setConfig }) {
+function Settings({ config, setConfig, onExport, onImport }) {
+  const fileInputRef = useState(null);
   return (
     <div style={{ animation:"fadeIn 0.4s ease" }}>
       <h2 style={{ fontSize:"1.15rem", fontWeight:700, marginBottom:22, color:T.t0 }}>Configurações</h2>
@@ -485,6 +660,32 @@ function Settings({ config, setConfig }) {
         <div style={{ ...cardStyle, padding:"18px", background:`linear-gradient(145deg, rgba(14,19,30,0.8), rgba(52,211,153,0.03))` }}>
           <div style={{ fontSize:"0.62rem", color:T.t3, fontWeight:600, letterSpacing:"0.5px", textTransform:"uppercase", marginBottom:6 }}>Limite por trade</div>
           <div style={{ fontFamily:fm, fontSize:"1.4rem", fontWeight:700, color:T.t0 }}>${((config.bankroll * config.maxRiskPct) / 100).toFixed(2)}</div>
+        </div>
+
+        {/* Export / Import */}
+        <div style={{ borderTop:`1px solid ${T.b0}`, paddingTop:20 }}>
+          <div style={{ fontSize:"0.72rem", fontWeight:600, color:T.t2, letterSpacing:"0.4px", textTransform:"uppercase", marginBottom:14 }}>Backup de Dados</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <button onClick={onExport} style={{
+              padding:"14px", border:`1px solid ${T.mint}33`, borderRadius:12,
+              background:T.mintDim, color:T.mint, fontSize:"0.84rem",
+              fontWeight:600, cursor:"pointer", fontFamily:ff, textAlign:"center",
+            }}>
+              📥 Exportar dados (JSON)
+            </button>
+            <label style={{
+              padding:"14px", border:`1px solid ${T.b1}`, borderRadius:12,
+              background:"transparent", color:T.t2, fontSize:"0.84rem",
+              fontWeight:500, cursor:"pointer", fontFamily:ff, textAlign:"center",
+              display:"block",
+            }}>
+              📤 Importar backup
+              <input type="file" accept=".json" style={{ display:"none" }} onChange={e => { if (e.target.files[0]) onImport(e.target.files[0]); e.target.value = "" }} />
+            </label>
+          </div>
+          <p style={{ fontSize:"0.68rem", color:T.t3, marginTop:8, lineHeight:1.5 }}>
+            Exporte regularmente para não perder dados. O arquivo JSON pode ser importado de volta a qualquer momento.
+          </p>
         </div>
       </div>
     </div>
